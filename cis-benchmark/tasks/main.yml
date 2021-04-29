@@ -1,0 +1,69 @@
+---
+# tasks file for cis-benchmark
+
+
+- name: Shadow
+  file:
+    path: /etc/shadow
+    owner: root
+    group: root
+    mode: '0000'
+
+- name: pass-complex
+  command: authconfig --passminlen=8 --enablereqdigit --enablerequpper --enablereqother --enablereqlower --update
+
+#- name: passauth
+#  copy:
+#   src: password-auth
+#   dest: /etc/pam.d/password-auth
+
+- name: pass reuse limit
+  lineinfile:
+    backup: yes
+    path: /etc/pam.d/system-auth
+    line: "password required pam_pwhistory.so remember=12"
+    state: present
+
+- name:  Checking Password Hashing Algorithm to SHA-51
+  shell: 'authconfig --test | grep hashing'
+  register: password_hash_algorithm
+
+- name: Upgrade Password Hashing Algorithm to SHA-5
+  shell: authconfig --passalgo=sha512 --update
+  when: '"sha512" not in password_hash_algorithm.stdout'
+
+
+- name:  Set Password Expiration Days (Scored)
+  lineinfile: 
+    backup: yes 
+    state: present 
+    path: /etc/login.defs
+    backrefs: yes
+    regexp: '^PASS_MAX_DAYS\s+'
+    line: "PASS_MAX_DAYS\t90"
+
+- name: inactive account disabling
+  command: /usr/sbin/useradd -D -f 90
+
+- name: Removing telnet and wget packages
+  yum:
+#    name: "{{ packages }}"
+    name: telnet, wget
+    state: absent
+#  vars:
+#    packages:
+#      - telnet 
+#      - wget
+     
+- name: Set SSH Protocol to 2 
+  lineinfile: 
+     path: /etc/ssh/sshd_config
+     regexp: '^Protocol'
+     line: "Protocol 2"
+- name: ssh restart
+  command: systemctl restart sshd
+#  notify: 
+#  - restart sshd
+
+
+
